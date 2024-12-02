@@ -9,13 +9,7 @@ class DownloadDataset(Component):
     save_dataset_path: InArg[str]
     
     data_dir: OutArg[any]
-    
-    def __init__(self):
-        self.done = False
-        self.dataset_url = InArg(None)
-        self.save_dataset_path = InArg(None)
-        
-        self.data_dir = OutArg(None)
+
         
     def execute(self, ctx):
         import pathlib
@@ -42,76 +36,69 @@ class DownloadDataset(Component):
 @xai_component
 class ExtractAudioFilesAndLabels(Component):
     data_dir: InArg[str]
-    
     dataset_files: OutArg[any]
-    
-    def __init__(self):
-        self.done = False
-        self.data_dir = InArg(None)
-        
-        self.dataset_files = OutArg(None)
-        
-    def execute(self, ctx):
-        import numpy as np
-        import tensorflow as tf
-        
-        data_dir = self.data_dir.value
-        
-        ## Folders list
-        commands = np.array(tf.io.gfile.listdir(str(data_dir)))
-        commands = commands[commands != 'README.md']
-        print('Commands:', commands)
 
-        filenames = tf.io.gfile.glob(str(data_dir) + '/*/*')
-        filenames = tf.random.shuffle(filenames)
+    def execute(self, ctx):
+        import os
+        import tensorflow as tf
+
+        data_dir = self.data_dir.value
+
+        filenames = []
+        for root, _, files in os.walk(data_dir):
+            for file in files:
+                if file.endswith('.wav'):
+                    filenames.append(os.path.join(root, file))
+
+        if not filenames:
+            raise ValueError(f"No .wav files found in directory: {data_dir}")
+
+        filenames = tf.random.shuffle(filenames).numpy()
+        filenames = [f.decode('utf-8') for f in filenames]
+
         num_samples = len(filenames)
-        print('Number of total examples:', num_samples)
-        print('Number of examples per label:',
-              len(tf.io.gfile.listdir(str(data_dir/commands[0]))))
-        print('Example file tensor:', filenames[0])
-        
-        ctx.update({'commands':commands, 'dataset_size':num_samples})
-        
+
+        commands = sorted(set(os.path.basename(os.path.dirname(f)) for f in filenames))
+
+        print(f'Number of total examples: {num_samples}')
+        print(f'Commands: {commands}')
+
+        ctx.update({'commands': commands, 'dataset_size': num_samples})
         self.dataset_files.value = filenames
-        
         self.done = True
-        
+
 #------------------------------------------------------------------------------
 #                    Xircuits Component : AudioToTensors
 #------------------------------------------------------------------------------
 @xai_component
 class AudioToTensors(Component):
     dataset_files: InArg[any]
-    
     waveform_data: OutArg[any]
-    
-    def __init__(self):
-        self.done = False
-        self.dataset_files = InArg(None)
-        
-        self.waveform_data = OutArg(None)
-        
+
     def execute(self, ctx):
-        import os
         import tensorflow as tf
-        
+        import os
+
         dataset_files = self.dataset_files.value
-        
+
         AUTOTUNE = tf.data.AUTOTUNE
         datasets = tf.data.Dataset.from_tensor_slices(dataset_files)
-        
+
         def get_waveform_and_label(file_path):
-            label = tf.strings.split(input=file_path, sep=os.path.sep)[-2] # get label
-            audio_binary = tf.io.read_file(file_path)
-            audio, _ = tf.audio.decode_wav(contents=audio_binary)
-            waveform = tf.squeeze(audio, axis=-1)
-            return waveform, label
-        
-        waveform_ds = datasets.map(map_func=get_waveform_and_label, num_parallel_calls=AUTOTUNE)  
-        
+            try:
+                label = tf.strings.split(file_path, os.path.sep)[-2]
+                audio_binary = tf.io.read_file(file_path)
+                audio, _ = tf.audio.decode_wav(audio_binary)
+                waveform = tf.squeeze(audio, axis=-1)
+                return waveform, label
+            except Exception as e:
+                print(f"Skipping file {file_path}: {e}")
+                return None, None
+
+        waveform_ds = datasets.map(map_func=get_waveform_and_label, num_parallel_calls=AUTOTUNE)
         self.waveform_data.value = waveform_ds
-        
         self.done = True
+
         
 #------------------------------------------------------------------------------
 #                    Xircuits Component : WaveformsToSpectrograms
@@ -121,12 +108,6 @@ class WaveformsToSpectrograms(Component):
     waveform_data: InArg[any]
     
     spectrogram_data: OutArg[any]
-    
-    def __init__(self):
-        self.done = False
-        self.waveform_data = InArg(None)
-        
-        self.spectrogram_data = OutArg(None)
         
     def execute(self, ctx):
         import tensorflow as tf
@@ -178,10 +159,6 @@ class WaveformsToSpectrograms(Component):
 class PlotSpectrogram(Component):
     spectrogram_data: InArg[any]
     
-    def __init__(self):
-        self.done = False
-        self.spectrogram_data = InArg(None)
-        
     def execute(self, ctx):
         import matplotlib.pyplot as plt
         import numpy as np
@@ -227,11 +204,6 @@ class PlotSpectrogram(Component):
 class SplitData(Component):
     spectrogram_data: InArg[any]
     train_size: InArg[float]
-    
-    def __init__(self):
-        self.done = False
-        self.spectrogram_data = InArg(None)
-        self.train_size = InArg(None)
         
     def execute(self, ctx):
         import numpy as np
@@ -278,11 +250,7 @@ class SplitData(Component):
 @xai_component
 class BuildSpeechModel(Component):
     model: OutArg[any]
-    
-    def __init__(self):
-        self.done = False
-        self.model = OutArg(None)
-        
+  
     def execute(self, ctx):
         from tensorflow.keras import layers, models
         
@@ -327,13 +295,6 @@ class CompileSpeechModel(Component):
     optimizer: InArg[str]
     
     compiled_model: OutArg[any]
-    
-    def __init__(self):
-        self.done = False
-        self.model = InArg(None)
-        self.optimizer = InArg(None)
-        
-        self.compiled_model = OutArg(None)
         
     def execute(self, ctx):
         import tensorflow as tf
@@ -357,13 +318,6 @@ class TrainSpeechModel(Component):
     epochs: InArg[int]
     
     training_metrics: OutArg[dict]
-    
-    def __init__(self):
-        self.done = False      
-        self.compiled_model = InArg(None)
-        self.epochs = InArg(None)
-        
-        self.training_metrics = OutArg(None)
         
     def execute(self, ctx):
         import tensorflow as tf
@@ -390,11 +344,6 @@ class TrainSpeechModel(Component):
 class PlotSpeechMetrics(Component):
     training_metrics: InArg[dict]
 
-    def __init__(self):
-        self.done = False
-
-        self.training_metrics = InArg.empty()
-    
     def execute(self, ctx) -> None:
         import matplotlib.pyplot as plt
         hist = self.training_metrics.value 
@@ -436,10 +385,6 @@ class PlotSpeechMetrics(Component):
 class EvaluateSpeechModel(Component):
     confusion_matrix: InArg[bool]
     
-    def __init__(self):
-        self.done = False
-        self.confusion_matrix= InArg(False)
-        
     def execute(self, ctx):
         import numpy as np
         import matplotlib.pyplot as plt
@@ -486,11 +431,6 @@ class SaveSpeechModel(Component):
     save_model_path: InArg[str]
     keras_format: InArg[bool]
     
-    def __init__(self):
-        self.done = False
-        self.save_model_path = InArg(None)
-        self.keras_format = InArg(False)
-    
     def execute(self, ctx):
         import os
         model = ctx['trained_model']
@@ -518,10 +458,6 @@ class SaveSpeechModel(Component):
 class ConvertSpeechTFModelToOnnx(Component):
     output_onnx_path: InArg[str]
     
-    def __init__(self):
-        self.done = False
-        self.output_onnx_path = InArg(None)
-        
     def execute(self, ctx):
         import os
         saved_model = ctx['saved_model_path']

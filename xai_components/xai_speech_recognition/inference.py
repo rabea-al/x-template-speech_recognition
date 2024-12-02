@@ -7,10 +7,6 @@ from xai_components.base import InArg, OutArg, InCompArg, Component, xai_compone
 class LoadModel(Component):
     model_path: InArg[str]
         
-    def __init__(self):
-        self.done = False
-        self.model_path = InArg(None)
-                
     def execute(self, ctx):
         import tensorflow as tf
         import numpy as np
@@ -30,13 +26,6 @@ class LoadAudioFile(Component):
     classes: InArg[list]
     
     audio_data: OutArg[any]
-    
-    def __init__(self):
-        self.done = False
-        self.audio_file = InArg(None)
-        self.classes = InArg(None)
-        
-        self.audio_data = OutArg(None)
         
     def execute(self, ctx):
         import tensorflow as tf
@@ -96,10 +85,6 @@ class LoadAudioFile(Component):
 @xai_component
 class PredictSpeech(Component):
     spectrogram_data: InArg[any]
-        
-    def __init__(self):
-        self.done = False
-        self.spectrogram_data = InArg(None)
         
     def execute(self, ctx):
         import tensorflow as tf
