@@ -70,6 +70,7 @@ xircuits
 - Predicts the speech from an audio file and outputs the text prediction. 
 
 ![Template](https://github.com/XpressAI/x-template-speech_recognition/raw/main/images/silero_inference.jpg)
+- This example didn't work on python3.11
 
 ## Future work
 

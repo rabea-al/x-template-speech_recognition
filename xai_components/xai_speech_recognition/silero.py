@@ -8,11 +8,6 @@ class SileroModelInference(Component):
     audio_file: InCompArg[str]
     language: InArg[str]
         
-    def __init__(self):
-        self.done = False
-        self.audio_file = InCompArg(None)
-        self.language = InArg(None)
-                
     def execute(self, ctx):
         import torch
         import zipfile

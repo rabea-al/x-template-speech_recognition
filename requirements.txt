@@ -1,9 +1,9 @@
 xircuits
-tensorflow
-matplotlib
-seaborn
-tf2onnx
-torch
-torchaudio
-PySoundFile
-omegaconf
+tensorflow==2.15.0
+matplotlib==3.9.3
+seaborn==0.13.2
+tf2onnx==1.16.1
+PySoundFile==0.9.0post1
+omegaconf==2.3.0
+torch==1.13.1
+torchaudio==0.13.1
